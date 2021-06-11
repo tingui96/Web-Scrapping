@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 import requests
 import time
+<<<<<<< HEAD
 from urllib.parse import urlparse, urljoin
 import hashlib
 from tools import *
@@ -83,6 +84,23 @@ class Scrapper:
                 time.sleep(2 ** wait)
                 wait = wait + 1
         return html
+=======
+from urllib.parse import urlparse
+
+
+class Scrapper:
+    def __init__(self,url,profundidad=0):
+        self.url = url
+        self.profundidad = profundidad
+        dicionario = dict()
+        
+    def scrapping(self,url):
+        if self.Valid(url):
+            peticion = requests.get(url)
+            self.text = peticion.text
+        else:
+            print('Invalid URL ' + url)   
+>>>>>>> 6d9712f (start)
 
     def Valid(self,url):
         try:
@@ -91,6 +109,7 @@ class Scrapper:
         except ValueError:
             return False     
 
+<<<<<<< HEAD
     def validTags(self, tag:str):
         '''
         Html tags filter
@@ -102,13 +121,22 @@ class Scrapper:
         file = open("./Almacen/"+str(filename), "w")
         file.write(self.text)
         file.close()
+=======
+    
+>>>>>>> 6d9712f (start)
 
 
 if __name__ == "__main__":
     print("Escriba URL")
     url = input()
     scrapy = Scrapper(url)
+<<<<<<< HEAD
     scrapy.scrapping()
     print(scrapy.text)
     scrapy.Save()
     
+=======
+    scrapy.scrapping(url)
+    print(scrapy.text)
+    
+>>>>>>> 6d9712f (start)
