@@ -6,7 +6,7 @@ import socket
 import random
 import hashlib
 import threading
-from scraping.py import Scraper
+from scraping import Scrapper
 
 from tools import *
 from collections import OrderedDict
@@ -235,12 +235,9 @@ class Node:
             print(f'My ID: {self.id}')
             print(f'Predecessor: {self.predID}')
             print(f'Successor: {self.succID}')
-        # elif userChoice == '5':
-        #     filename = input('Enter filename: ')
-        #     fileID = getHash(filename)
-        #     recvIPport = self.getSuccessor(self.succ, fileID)
-        #     self.uploadFile(filename, recvIPport, True)
-        #     self.printFingerTable()
+        elif userChoice == '5':
+            filename = input('Enter Url: ')
+            self.downloadFile(filename)
         # elif userChoice == '6':
         #     filename = input('Enter filename: ')
         #     self.downloadFile(filename)
@@ -328,17 +325,21 @@ class Node:
         print('Downloading file', filename)
         fileID = getHash(filename)
         recvIPport = self.getSuccessor(self.succ, fileID)
-        sDataList = [1, 0, filename]
+        sDataList = [1, 0, fileID]
         cSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         cSocket.connect(recvIPport)
         cSocket.sendall(pickle.dumps(sDataList))
         fileData = cSocket.recv(BUFFER)
         if fileData == b'NotFound':
             print('File not found:', filename)
-            scrapy = sc
+            scrapy = Scrapper(filename)
+            scrapy.scrapping(filename)
+            recvIPport = self.getSuccessor(self.succ, fileID)
+            self.uploadFile(fileID, recvIPport,True)
+            
         else:
             print('Receiving file:', filename)
-            self.receiveFile(cSocket, filename)
+            self.receiveFile(cSocket, fileID)
 
     def getSuccessor(self, address, keyID):
         rDataList = [1, address]
@@ -382,17 +383,17 @@ class Node:
             except socket.error:
                 print('Connection denied')
 
-    def sendFile(self, connection, filename):
-        print('Sending file:', filename)
+    def sendFile(self, connection, fileID):
+        print('Sending file:', fileID)
         try:
-            with open(filename, 'rb') as file:
+            with open(fileID, 'rb') as file:
                 data = file.read()
                 print('File size:', len(data))
                 fileSize = len(data)
         except:
             print('File not found')
         try:
-            with open(filename, 'rb') as file:
+            with open(fileID, 'rb') as file:
                 while True:
                     fileData = file.read(BUFFER)
                     time.sleep(0.001)

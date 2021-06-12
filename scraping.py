@@ -86,13 +86,15 @@ class Scrapper:
         return html
 =======
 from urllib.parse import urlparse
-
+import hashlib
+from tools import *
 
 class Scrapper:
     def __init__(self,url,profundidad=0):
         self.url = url
         self.profundidad = profundidad
         dicionario = dict()
+        self.text = ""
         
     def scrapping(self,url):
         if self.Valid(url):
@@ -109,22 +111,7 @@ class Scrapper:
         except ValueError:
             return False     
 
-<<<<<<< HEAD
-    def validTags(self, tag:str):
-        '''
-        Html tags filter
-        '''
-        return tag.has_attr('href') or tag.has_attr('src')
-
-    def Save(self):
-        filename = getHash(self.url)
-        file = open("./Almacen/"+str(filename), "w")
-        file.write(self.text)
-        file.close()
-=======
     
->>>>>>> 6d9712f (start)
-
 
 if __name__ == "__main__":
     print("Escriba URL")
@@ -138,5 +125,6 @@ if __name__ == "__main__":
 =======
     scrapy.scrapping(url)
     print(scrapy.text)
+    scrapy.Save()
     
 >>>>>>> 6d9712f (start)
