@@ -47,34 +47,34 @@ class Node:
 
     def connectionThread(self, connection, address):
         '''
-        Thread for each peer connection.
-        Types of connections 0 : peer connect
+        datos[0] da el tipo de coneccion
+        Tipos de conecciones 0 : peer connect
                              1 : client
                              2 : ping
                              3 : lookupID
                              4 : updateSucc/Pred
         '''
-        rDataList = pickle.loads(connection.recv(BUFFER))
-        connectionType = rDataList[0]
+        datos = pickle.loads(connection.recv(BUFFER))
+        connectionType = datos[0]
         if connectionType == 0:
             print(f'Connection with: {address[0]} : {address[1]}')
             print('Join network request recevied')
-            self.joinNode(connection, address, rDataList)
+            self.joinNode(connection, address, datos)
             self.printMenu()
         elif connectionType == 1:
             print(f'Connection with: {address[0]} : {address[1]}')
             print('Upload/Download request recevied')
-            self.transferFile(connection, address, rDataList)
+            self.transferFile(connection, address, datos)
             self.printMenu()
         elif connectionType == 2:
             connection.sendall(pickle.dumps(self.pred))
         elif connectionType == 3:
-            self.lookupID(connection, address, rDataList)
+            self.lookupID(connection, address, datos)
         elif connectionType == 4:
-            if rDataList[1] == 1:
-                self.updateSucc(rDataList)
+            if datos[1] == 1:
+                self.updateSucc(datos)
             else:
-                self.updatePred(rDataList)
+                self.updatePred(datos)
         elif connectionType == 5:
             self.updateFingerTable()
             connection.sendall(pickle.dumps(self.succ))

@@ -96,13 +96,12 @@ class Scrapper:
         dicionario = dict()
         self.text = ""
         
-    def scrapping(self,url):
-        if self.Valid(url):
-            peticion = requests.get(url)
+    def scrapping(self):
+        if self.Valid(self.url):
+            peticion = requests.get(self.url)
             self.text = peticion.text
         else:
             print('Invalid URL ' + url)   
->>>>>>> 6d9712f (start)
 
     def Valid(self,url):
         try:
@@ -111,18 +110,17 @@ class Scrapper:
         except ValueError:
             return False     
 
-    
+    def Save(self):
+        filename = getHash(self.url)
+        file = open("./www/"+str(filename), "w")
+        file.write(self.text)
+        file.close()
+
 
 if __name__ == "__main__":
     print("Escriba URL")
     url = input()
     scrapy = Scrapper(url)
-<<<<<<< HEAD
-    scrapy.scrapping()
-    print(scrapy.text)
-    scrapy.Save()
-    
-=======
     scrapy.scrapping(url)
     print(scrapy.text)
     scrapy.Save()
