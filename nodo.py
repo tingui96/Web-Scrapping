@@ -31,6 +31,23 @@ class Node:
         except socket.error:
             print('Socket not opened')
 
+    def menu(self):
+        if(self.predID==self.id and self.succID==self.id):
+            print("1- Conectarse a la Red")
+            index = input()
+            if index == "1":
+                print("Direccion:")
+                addr = input()
+                print("Puerto:")
+                port = input()
+                self.sendJoinRequest(addr,int(port))
+        print("Introduzca la URL a scrapear:")
+        URL = input()
+        print("Introduzca la profundidad de scrapping:")
+        profundidad = input()
+        self.sendScrappingRequest(addr,port,URL)
+        
+
     def start(self):
         '''
         Accepting connections from other threads.
@@ -208,76 +225,91 @@ class Node:
                 datos = [1, value]
         connection.sendall(pickle.dumps(datos))
     
-    def sendScrappingRequest(self, ip, puerto, URL, profundidad=0):
+    def sendScrappingRequest(self, ip, puerto:int, URL, profundidad=0):
         urlID = getHash(URL)
         recvAddress = self.getSuccessor((ip,puerto),urlID)
-        peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        peerSocket.connect(recvAddress)
-        datos = [1,URL]
-        #Envio la url a scrapear
-        peerSocket.sendall(pickle.dumps(datos))
-        #recibo todo el scrapping de la URL
-        datos = pickle.loads(peerSocket.recv(BUFFER)) 
         filename = URL.split('/')[-1]
-        fileAlready = False
-        try:
-            file = open("./www/"+str(filename), "w")
-            data = file.read()
-            size = len(data)
-            if size == 0:
-                print('Retransmission request sent')
-                fileAlready = False
-            else:
-                print('File already present')
-                fileAlready = True
-            return
-        except FileNotFoundError:
-            pass
-
-        if not fileAlready:
-            totalData = b''
+        #lo debo tener yo mismo
+        if recvAddress[0] == self.address[0] and recvAddress[1] == self.address[1]:
+        
             try:
-                file = open("./www/"+str(filename), "w")
-                while True:
-                    fileData = connection.recv(BUFFER)
-                    if not fileData:
-                        break
-                    totalData += fileData
-                file.write(totalData)
-            except ConnectionResetError:
-                print('Data transfer interupted')
-                print('Waiting for system to stabilize')
-                print('Trying again in 10 seconds')
-                os.remove(filename)
+                file = open("./Almacen/"+str(urlID),"r")
+            except:
+                scrapy = Scrapper(URL,profundidad)
+                scrapy.scrapping()
+                scrapy.Save()
+                file = open("./Almacen/"+str(urlID),"r")
+            file1 = open("./www/"+filename,"w")
+            text = file.read()
+            file1.write(text)
+            file.close()
+            file1.close()
+        else:
+            peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            peerSocket.connect(recvAddress)
+            datos = [1,URL]
+            #Envio la url a scrapear
+            peerSocket.sendall(pickle.dumps(datos))
+            #recibo todo el scrapping de la URL        
+            self.RecibirArchivo(peerSocket,filename)    
+        
                 
 
         
 
-    def Scrapping(self,connection, URL,datos):
+    def Scrapping(self,connection, address, datos):
+        URL = datos[1]
         urlID = getHash(URL)
         print('Sending scrapping:', URL)
         try:
-            file = ("./Almacen/"+str(urlID), "r")
-            file.close()            
+            file = open("./Almacen/"+str(urlID), "r")          
         except:
             print('File not found...scrapping')
             scrapy = Scrapper(URL)
             scrapy.scrapping()
             scrapy.Save()
+            file = open("./Almacen/"+str(urlID), "r")            
+        self.EnviarArchivo(connection,file, urlID)
+        
+
+    def EnviarArchivo(self,file, connection, fileID):
         try:
-            file = open("./Almacen/"+str(urlID),"r")
-                while True:
-                    fileData = file.read(BUFFER)
-                    time.sleep(0.001)
-                    if not fileData:
-                        break
-                    connection.sendall(fileData)
+            while True:
+                fileData = file.read(BUFFER)
+                print(fileData)
+                time.sleep(0.001)
+                if not fileData:
+                    break
+                connection.sendall(fileData)
+            file.close()
         except:
+            print("No se mando ni carajo")
             pass
         print('File sent')
 
+    def RecibirArchivo(self,connection,filename):
+        totalData = b''
+        try:
+            file = open("./www/"+str(filename), "w")
+            print("Abro el archivo y escucho")
+            while True:
+                fileData = connection.recv(BUFFER)
+                print(fileData)
+                if not fileData:
+                    break
+                totalData += fileData
+            file.write(totalData)
+            file.close()
+            print("Todo escrito en archivo")
+        except ConnectionResetError:
+            print('Data transfer interupted')
+            print('Waiting for system to stabilize')
+            print('Trying again in 10 seconds')
+            os.remove(filename)
+
+
         
-    
+
     
 
     
