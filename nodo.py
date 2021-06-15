@@ -23,7 +23,7 @@ class Node:
         self.succ = (ip, port)
         self.succID = self.id
         self.fingerTable = OrderedDict()
-        self.filenameList = []
+        self.UrlList = []
         try:
             self.ServerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.ServerSocket.bind((IP, PORT))
@@ -32,20 +32,21 @@ class Node:
             print('Socket not opened')
 
     def menu(self):
-        if(self.predID==self.id and self.succID==self.id):
-            print("1- Conectarse a la Red")
-            index = input()
-            if index == "1":
-                print("Direccion:")
-                addr = input()
-                print("Puerto:")
-                port = input()
-                self.sendJoinRequest(addr,int(port))
+        ip = self.ip
+        port = self.port
+        print("1- Conectarse a la Red\n2- Scrapear URL")
+        index = input()
+        if index == "1":
+            print("Direccion:")
+            ip = input()
+            print("Puerto:")
+            port = input()
+            self.sendJoinRequest(ip,int(port))
         print("Introduzca la URL a scrapear:")
         URL = input()
         print("Introduzca la profundidad de scrapping:")
         profundidad = input()
-        self.sendScrappingRequest(addr,port,URL)
+        self.sendScrappingRequest(ip,int(port),URL)
         
 
     def start(self):
@@ -82,8 +83,10 @@ class Node:
             print(f'Connection with: {address[0]} : {address[1]}')
             print('Join network request recevied')
             self.joinNode(connection, address, datos)
+            self.menu()
         elif connectionType == 1:
             self.Scrapping(connection,address,datos)
+            self.menu()
         elif connectionType == 2:
             connection.sendall(pickle.dumps(self.pred))
         elif connectionType == 3:
@@ -96,6 +99,8 @@ class Node:
         elif connectionType == 5:
             self.updateFingerTable()
             connection.sendall(pickle.dumps(self.succ))
+        elif connectionType == 6:
+            self.transferFile(connection, address, datos)
         else:
             print('Problem with connection type')
 
@@ -231,14 +236,11 @@ class Node:
         filename = URL.split('/')[-1]
         #lo debo tener yo mismo
         if recvAddress[0] == self.address[0] and recvAddress[1] == self.address[1]:
-        
-            try:
-                file = open("./Almacen/"+str(urlID),"r")
-            except:
+            if urlID not in self.UrlList:
                 scrapy = Scrapper(URL,profundidad)
                 scrapy.scrapping()
                 scrapy.Save()
-                file = open("./Almacen/"+str(urlID),"r")
+            file = open("./Almacen/"+str(urlID),"r")
             file1 = open("./www/"+filename,"w")
             text = file.read()
             file1.write(text)
@@ -251,7 +253,7 @@ class Node:
             #Envio la url a scrapear
             peerSocket.sendall(pickle.dumps(datos))
             #recibo todo el scrapping de la URL        
-            self.RecibirArchivo(peerSocket,filename)    
+            self.RecibirArchivo(peerSocket,filename)   
         
                 
 
@@ -261,44 +263,59 @@ class Node:
         URL = datos[1]
         urlID = getHash(URL)
         print('Sending scrapping:', URL)
-        try:
-            file = open("./Almacen/"+str(urlID), "r")          
-        except:
-            print('File not found...scrapping')
+        if urlID not in self.UrlList:
+            print('URL not found...scrapping')
             scrapy = Scrapper(URL)
             scrapy.scrapping()
             scrapy.Save()
-            file = open("./Almacen/"+str(urlID), "r")            
-        self.EnviarArchivo(connection,file, urlID)
+            self.UrlList.append(urlID)              
+        self.EnviarArchivo(connection,URL, urlID)
         
 
-    def EnviarArchivo(self,file, connection, fileID):
+    def EnviarArchivo(self, connection,URL, fileID):
         try:
-            while True:
-                fileData = file.read(BUFFER)
+            file = open("./Almacen/"+str(fileID),"rb")
+            fileData = file.read(BUFFER)
+            while fileData:                
                 print(fileData)
-                time.sleep(0.001)
-                if not fileData:
-                    break
-                connection.sendall(fileData)
-            file.close()
+                connection.send(fileData)
+                fileData = file.read(BUFFER)
         except:
             print("No se mando ni carajo")
             pass
         print('File sent')
+        # Se utiliza el caracter de código 1 para indicar
+        # al cliente que ya se ha enviado todo el contenido.
+        try:
+            connection.send(chr(1))
+        except TypeError:
+            # Compatibilidad con Python 3.
+            connection.send(bytes(chr(1), "utf-8"))
+    
+        # Cerrar conexión y archivo.
+        connection.close()
+        file.close()
+        print("El archivo ha sido enviado correctamente.")
 
     def RecibirArchivo(self,connection,filename):
-        totalData = b''
         try:
-            file = open("./www/"+str(filename), "w")
+            file = open("./www/"+str(filename), "wb")
             print("Abro el archivo y escucho")
-            while True:
+            while True:                
                 fileData = connection.recv(BUFFER)
                 print(fileData)
-                if not fileData:
+                if fileData:                    
+                    if isinstance(fileData, bytes):
+                        end = fileData[0] == 1
+                    else:
+                        end = fileData == chr(1)
+                    if not end:
+                        # Almacenar datos.
+                        file.write(fileData)
+                    else:
+                        break
+                else:
                     break
-                totalData += fileData
-            file.write(totalData)
             file.close()
             print("Todo escrito en archivo")
         except ConnectionResetError:
@@ -307,12 +324,7 @@ class Node:
             print('Trying again in 10 seconds')
             os.remove(filename)
 
-
         
-
-    
-
-    
     
 if __name__ == '__main__':
 
