@@ -42,11 +42,13 @@ class Node:
             print("Puerto:")
             port = input()
             self.sendJoinRequest(ip,int(port))
-        print("Introduzca la URL a scrapear:")
-        URL = input()
-        print("Introduzca la profundidad de scrapping:")
-        profundidad = input()
-        self.sendScrappingRequest(ip,int(port),URL)
+            self.menu()
+        if index == "2"    
+            print("Introduzca la URL a scrapear:")
+            URL = input()
+            print("Introduzca la profundidad de scrapping:")
+            profundidad = input()
+            self.sendScrappingRequest(ip,int(port),URL)
         
 
     def start(self):
@@ -277,7 +279,6 @@ class Node:
             file = open("./Almacen/"+str(fileID),"rb")
             fileData = file.read(BUFFER)
             while fileData:                
-                print(fileData)
                 connection.send(fileData)
                 fileData = file.read(BUFFER)
         except:
@@ -300,10 +301,8 @@ class Node:
     def RecibirArchivo(self,connection,filename):
         try:
             file = open("./www/"+str(filename), "wb")
-            print("Abro el archivo y escucho")
             while True:                
                 fileData = connection.recv(BUFFER)
-                print(fileData)
                 if fileData:                    
                     if isinstance(fileData, bytes):
                         end = fileData[0] == 1
@@ -317,6 +316,7 @@ class Node:
                 else:
                     break
             file.close()
+            connection.close()
             print("Todo escrito en archivo")
         except ConnectionResetError:
             print('Data transfer interupted')
