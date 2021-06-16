@@ -49,6 +49,7 @@ class Node:
             print(f'My ID: {self.id}')
             print(f'Predecessor: {self.predID}')
             print(f'Successor: {self.succID}')
+            
 
     def printFingerTable(self):
         print('Printing Finger Table')
@@ -150,7 +151,7 @@ class Node:
             print("actualizo mi sucesor con "+str(self.succID))
             datos = [4, 1, self.address]
             pSocket2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            #entra al antecesor para que actualice su succesor conmigo
+            #entra al antecesor para que actualice su predecesor conmigo
             pSocket2.connect(self.pred)
             pSocket2.sendall(pickle.dumps(datos))
             print("Actualizo el sucesor de mi antecesor")
@@ -168,12 +169,14 @@ class Node:
             peerAddr = datos[1]
             peerID = getHash(f'{peerAddr[0]}:{str(peerAddr[1])}')
             print("llego "+str(peerID))
-            oldPred = self.pred
+            
+            oldPred= self.pred
             self.pred = peerAddr
             self.predID = peerID
             print("Actualizo mi predecesor con "+ str(self.predID))
             datos = [oldPred]
             #le envio a su antecesor
+            print("Le envio su predecesor que es "+str(datos))
             connection.sendall(pickle.dumps(datos))
             time.sleep(0.1)
             self.updateFingerTable()
@@ -208,6 +211,7 @@ class Node:
 
     def updateOtherFingerTables(self):
         here = self.succ
+        
         while True:
             if here == self.address:
                 break
