@@ -43,6 +43,17 @@ class Node:
             URL = input('Introduzca la URL: ')
             profundidad = input('Nivel de profundidad: ')
             self.sendScrappingRequest(URL)
+        elif userChoice == '3':
+            self.printFingerTable()
+        elif userChoice == '4':
+            print(f'My ID: {self.id}')
+            print(f'Predecessor: {self.predID}')
+            print(f'Successor: {self.succID}')
+
+    def printFingerTable(self):
+        print('Printing Finger Table')
+        for key, value in self.fingerTable.items(): 
+            print(f'KeyID: {key}, Value: {value}')
 
     def menu(self):        
         print("1- Conectarse a la Red\n2- Scrapear URL")
@@ -81,8 +92,7 @@ class Node:
             try:
                 connection, address = self.ServerSocket.accept()
                 connection.settimeout(120)
-                threading.Thread(target=self.connectionThread, args=(connection, address)).start()
-                #threading.Thread(target=self.pingSucc, args=()).start()
+                threading.Thread(target=self.connectionThread, args=(connection, address)).start()                
             except socket.error:
                 pass
 
@@ -120,22 +130,30 @@ class Node:
     def sendJoinRequest(self, ip, port):
         try:
             recvAddress = self.getSuccessor((ip, port), self.id)
+            print("mi sucesor es "+ str(recvAddress[1]))
             peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peerSocket.connect(recvAddress)
+            print("me conecto a mi sucesor")
             # 0 para que sepa que me quiero unir y le mando mi ip,puerto
             datos = [0, self.address]
             peerSocket.sendall(pickle.dumps(datos))
+            print("le envio mi direccion que es "+str(self.address[1]))
             #recibo en datos quien es mi antecesor
-            datos = pickle.loads(peerSocket.recv(BUFFER))            
+            datos = pickle.loads(peerSocket.recv(BUFFER)) 
+                      
             self.pred = datos[0]
             self.predID = getHash(f'{self.pred[0]}:{str(self.pred[1])}')
+            print("recibo mi antecesor "+ str(self.predID)) 
             self.succ = recvAddress
+            
             self.succID = getHash(f'{self.succ[0]}:{str(self.succ[1])}')
+            print("actualizo mi sucesor con "+str(self.succID))
             datos = [4, 1, self.address]
             pSocket2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             #entra al antecesor para que actualice su succesor conmigo
             pSocket2.connect(self.pred)
             pSocket2.sendall(pickle.dumps(datos))
+            print("Actualizo el sucesor de mi antecesor")
             pSocket2.close()
             peerSocket.close()
         except socket.error:
@@ -149,9 +167,11 @@ class Node:
             #recibo la direccion del nodo
             peerAddr = datos[1]
             peerID = getHash(f'{peerAddr[0]}:{str(peerAddr[1])}')
+            print("llego "+str(peerID))
             oldPred = self.pred
             self.pred = peerAddr
             self.predID = peerID
+            print("Actualizo mi predecesor con "+ str(self.predID))
             datos = [oldPred]
             #le envio a su antecesor
             connection.sendall(pickle.dumps(datos))
@@ -373,51 +393,54 @@ class Node:
             print('Trying again in 10 seconds')
             os.remove(filename)
 
-    #def pingSucc(self):
-    #    while True:
-    #        # Ping every 5 seconds
-    #        time.sleep(2)
-    #        if self.address == self.succ:
-    #        # If only one node, no need to ping
-    #            continue
-#
-    #        try:
-    #            pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #            pSocket.connect(self.succ)
-    #            pSocket.sendall(pickle.dumps([2]))
-    #            recvPred = pickle.loads(pSocket.recv(BUFFER))
-    #        except:
-    #            print('\nOffline node dedected!\nStabilizing...')
-    #            # Search for the next succ from the F table
-    #            newSuccFound = False
-    #            value = ()
-    #            for key, value in self.fingerTable.items():
-    #                if value[0] != self.succID:
-    #                    newSuccFound = True
-    #                    break
-    #            if newSuccFound:
-    #                self.succ = value[1]
-    #                self.succID = getHash(f'{self.succ[0]}:{str(self.succ[1])}')
-    #                # Inform new succ to update its pred to me now
-    #                pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #                pSocket.connect(self.succ)
-    #                pSocket.sendall(pickle.dumps([4, 0, self.address]))
-    #                pSocket.close()
-    #                #for fileName in os.listdir("./Almacen/"):
-    #                #    pSocket.connect(self.succ)
-    #                #    pSocket.sendall(pickle.dump([6, fileName]))
-    #                #    self.EnviarArchivo(pSocket, fileName)
-#
-
-    #            else:
-    #                self.pred = self.address
-    #                self.predID = self.id
-    #                self.succ = self.address
-    #                self.succID = self.id
-    #            self.updateFingerTable()
-    #            self.updateOtherFingerTables()
-    #            self.menu()
-        
+    def pingSucc(self):
+        while True:
+            # Ping every 5 seconds
+            time.sleep(5)
+            if self.address == self.succ:
+            # If only one node, no need to ping
+                continue
+            try:
+                pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                #print("abri el socket")
+                pSocket.connect(self.succ)
+                #print("me conecte")
+                pSocket.sendall(pickle.dumps([2]))
+                #print("envie ping")
+                recvPred = pickle.loads(pSocket.recv(BUFFER))
+                
+            except:
+                print('\nOffline node dedected!\nStabilizing...')
+                # Search for the next succ from the F table
+                newSuccFound = False
+                value = ()
+                self.printFingerTable()
+                for key, value in self.fingerTable.items():
+                    if value[0] != self.succID:
+                        newSuccFound = True
+                        break
+                if newSuccFound:
+                    self.succ = value[1]
+                    self.succID = getHash(f'{self.succ[0]}:{str(self.succ[1])}')
+                    # Inform new succ to update its pred to me now
+                    pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    pSocket.connect(self.succ)
+                    pSocket.sendall(pickle.dumps([4, 0, self.address]))
+                    pSocket.close()
+                    print("mi sucesor es "+ str(self.succID))
+                    #for fileName in os.listdir("./Almacen/"):
+                    #    pSocket.connect(self.succ)
+                    #    pSocket.sendall(pickle.dump([6, fileName]))
+                    #    self.EnviarArchivo(pSocket, fileName)
+                else:
+                    self.pred = self.address
+                    self.predID = self.id
+                    self.succ = self.address
+                    self.succID = self.id
+                self.updateFingerTable()
+                self.updateOtherFingerTables()
+                self.menu()
+       
     
 
 
