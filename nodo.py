@@ -31,9 +31,19 @@ class Node:
         except socket.error:
             print('Socket not opened')
 
-    def menu(self):
-        ip = self.ip
-        port = self.port
+    def Cliente(self):
+        self.menu()
+        userChoice = input()
+        if userChoice == '1':
+            ip = input('Enter IP to connect: ')
+            port = input('Enter port: ')
+            self.sendJoinRequest(ip, int(port))
+        elif userChoice == '2':
+            URL = input('Introduzca la URL: ')
+            profundidad = input('Nivel de profundidad: ')
+            self.sendScrappingRequest(URL)
+
+    def menu(self):        
         print("1- Conectarse a la Red\n2- Scrapear URL")
         index = input()
         if index == "1":
@@ -42,8 +52,7 @@ class Node:
             print("Puerto:")
             port = input()
             self.sendJoinRequest(ip,int(port))
-            self.menu()
-        if index == "2"    
+        if index == "2":    
             print("Introduzca la URL a scrapear:")
             URL = input()
             print("Introduzca la profundidad de scrapping:")
@@ -60,6 +69,7 @@ class Node:
         # In case of connecting to other clients
         while True:
             print('Listening to other clients')
+            self.menu()
 
     def listenThread(self):
         '''
@@ -71,6 +81,7 @@ class Node:
                 connection, address = self.ServerSocket.accept()
                 connection.settimeout(120)
                 threading.Thread(target=self.connectionThread, args=(connection, address)).start()
+                threading.Thread(target=self.pingSucc, args=()).start()
             except socket.error:
                 pass
 
@@ -85,10 +96,8 @@ class Node:
             print(f'Connection with: {address[0]} : {address[1]}')
             print('Join network request recevied')
             self.joinNode(connection, address, datos)
-            self.menu()
         elif connectionType == 1:
             self.Scrapping(connection,address,datos)
-            self.menu()
         elif connectionType == 2:
             connection.sendall(pickle.dumps(self.pred))
         elif connectionType == 3:
@@ -101,8 +110,9 @@ class Node:
         elif connectionType == 5:
             self.updateFingerTable()
             connection.sendall(pickle.dumps(self.succ))
-        elif connectionType == 6:
-            self.transferFile(connection, address, datos)
+        #elif connectionType == 6:
+        #    self.RecibirArchivo(connection, datos[1], 1)
+        #    pass
         else:
             print('Problem with connection type')
 
@@ -232,9 +242,9 @@ class Node:
                 datos = [1, value]
         connection.sendall(pickle.dumps(datos))
     
-    def sendScrappingRequest(self, ip, puerto:int, URL, profundidad=0):
+    def sendScrappingRequest(self, URL, profundidad=0):
         urlID = getHash(URL)
-        recvAddress = self.getSuccessor((ip,puerto),urlID)
+        recvAddress = self.getSuccessor(self.succ,urlID)
         filename = URL.split('/')[-1]
         #lo debo tener yo mismo
         if recvAddress[0] == self.address[0] and recvAddress[1] == self.address[1]:
@@ -256,34 +266,37 @@ class Node:
             peerSocket.sendall(pickle.dumps(datos))
             #recibo todo el scrapping de la URL        
             self.RecibirArchivo(peerSocket,filename)   
-        
-                
-
-        
 
     def Scrapping(self,connection, address, datos):
         URL = datos[1]
         urlID = getHash(URL)
         print('Sending scrapping:', URL)
-        if urlID not in self.UrlList:
+
+        if not os.path.exists("./Almacen/"+str(urlID)):
             print('URL not found...scrapping')
             scrapy = Scrapper(URL)
             scrapy.scrapping()
             scrapy.Save()
-            self.UrlList.append(urlID)              
-        self.EnviarArchivo(connection,URL, urlID)
+            #self.UrlList.append(urlID)              
+        self.EnviarArchivo(connection, urlID)
         
 
-    def EnviarArchivo(self, connection,URL, fileID):
+    def EnviarArchivo(self, connection, fileID):
+        file_open=0
         try:
             file = open("./Almacen/"+str(fileID),"rb")
+            file_open=1
             fileData = file.read(BUFFER)
             while fileData:                
                 connection.send(fileData)
                 fileData = file.read(BUFFER)
         except:
+            if file_open:
+                file.close()
+            connection.close()
             print("No se mando ni carajo")
-            pass
+            return
+        
         print('File sent')
         # Se utiliza el caracter de código 1 para indicar
         # al cliente que ya se ha enviado todo el contenido.
@@ -292,14 +305,49 @@ class Node:
         except TypeError:
             # Compatibilidad con Python 3.
             connection.send(bytes(chr(1), "utf-8"))
-    
+
         # Cerrar conexión y archivo.
         connection.close()
         file.close()
+        
+        #pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        #pSocket.connect(self.succ)
+        #pSocket.sendall(pickle.dumps([6,fileID]))
+        #state = pSocket.recv(BUFFER)
+        #if state == 'notfound':
+        #    try:
+        #        file = open("./Almacen/"+str(fileID),"rb")
+        #        file_open=1
+        #        fileData = file.read(BUFFER)
+        #        while fileData:                
+        #            connection.send(fileData)
+        #            fileData = file.read(BUFFER)
+        #    except:
+        #        if file_open:
+        #            file.close()
+        #        connection.close()
+        #        print("No se mando ni carajo")
+        #        return
+        #try:
+        #    connection.send(chr(1))
+        #except TypeError:
+        #    # Compatibilidad con Python 3.
+        #    connection.send(bytes(chr(1), "utf-8"))
+        #
+        #connection.close()
+        #file.close()
+
         print("El archivo ha sido enviado correctamente.")
 
-    def RecibirArchivo(self,connection,filename):
+    def RecibirArchivo(self,connection,filename, flag = 0):
         try:
+            #if  flag:
+            #    if not os.path.exists("./Pred/"+str(filename)):
+            #        connection.sendall('notfound')
+            #        file = open("./Pred/"+str(filename), "wb")
+            #    else:
+            #        connection.sendall('found') 
+            #else:
             file = open("./www/"+str(filename), "wb")
             while True:                
                 fileData = connection.recv(BUFFER)
@@ -324,8 +372,55 @@ class Node:
             print('Trying again in 10 seconds')
             os.remove(filename)
 
+    def pingSucc(self):
+        while True:
+            # Ping every 5 seconds
+            time.sleep(2)
+            # If only one node, no need to ping
+            if self.address == self.succ:
+                continue
+
+            try:
+                pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                pSocket.connect(self.succ)
+                pSocket.sendall(pickle.dumps([2]))
+                recvPred = pickle.loads(pSocket.recv(BUFFER))
+            except:
+                print('\nOffline node dedected!\nStabilizing...')
+                # Search for the next succ from the F table
+                newSuccFound = False
+                value = ()
+                for key, value in self.fingerTable.items():
+                    if value[0] != self.succID:
+                        newSuccFound = True
+                        break
+                if newSuccFound:
+                    self.succ = value[1]
+                    self.succID = getHash(f'{self.succ[0]}:{str(self.succ[1])}')
+                    # Inform new succ to update its pred to me now
+                    pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    pSocket.connect(self.succ)
+                    pSocket.sendall(pickle.dumps([4, 0, self.address]))
+                    pSocket.close()
+                    #for fileName in os.listdir("./Almacen/"):
+                    #    pSocket.connect(self.succ)
+                    #    pSocket.sendall(pickle.dump([6, fileName]))
+                    #    self.EnviarArchivo(pSocket, fileName)
+
+
+                else:
+                    self.pred = self.address
+                    self.predID = self.id
+                    self.succ = self.address
+                    self.succID = self.id
+                self.updateFingerTable()
+                self.updateOtherFingerTables()
+                self.menu()
         
     
+
+
+
 if __name__ == '__main__':
 
     if len(sys.argv) < 3:
