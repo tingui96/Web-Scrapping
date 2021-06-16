@@ -1,3 +1,4 @@
+from genericpath import exists
 import os
 import sys
 import time
@@ -81,7 +82,7 @@ class Node:
                 connection, address = self.ServerSocket.accept()
                 connection.settimeout(120)
                 threading.Thread(target=self.connectionThread, args=(connection, address)).start()
-                threading.Thread(target=self.pingSucc, args=()).start()
+                #threading.Thread(target=self.pingSucc, args=()).start()
             except socket.error:
                 pass
 
@@ -248,12 +249,12 @@ class Node:
         filename = URL.split('/')[-1]
         #lo debo tener yo mismo
         if recvAddress[0] == self.address[0] and recvAddress[1] == self.address[1]:
-            if urlID not in self.UrlList:
+            if not os.path.exists("./Almacen/"+str(urlID)):
                 scrapy = Scrapper(URL,profundidad)
                 scrapy.scrapping()
                 scrapy.Save()
-            file = open("./Almacen/"+str(urlID),"r")
-            file1 = open("./www/"+filename,"w")
+            file = open("./Almacen/"+str(urlID),"rb")
+            file1 = open("./www/"+filename,"wb")
             text = file.read()
             file1.write(text)
             file.close()
@@ -372,50 +373,50 @@ class Node:
             print('Trying again in 10 seconds')
             os.remove(filename)
 
-    def pingSucc(self):
-        while True:
-            # Ping every 5 seconds
-            time.sleep(2)
-            # If only one node, no need to ping
-            if self.address == self.succ:
-                continue
+    #def pingSucc(self):
+    #    while True:
+    #        # Ping every 5 seconds
+    #        time.sleep(2)
+    #        if self.address == self.succ:
+    #        # If only one node, no need to ping
+    #            continue
+#
+    #        try:
+    #            pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #            pSocket.connect(self.succ)
+    #            pSocket.sendall(pickle.dumps([2]))
+    #            recvPred = pickle.loads(pSocket.recv(BUFFER))
+    #        except:
+    #            print('\nOffline node dedected!\nStabilizing...')
+    #            # Search for the next succ from the F table
+    #            newSuccFound = False
+    #            value = ()
+    #            for key, value in self.fingerTable.items():
+    #                if value[0] != self.succID:
+    #                    newSuccFound = True
+    #                    break
+    #            if newSuccFound:
+    #                self.succ = value[1]
+    #                self.succID = getHash(f'{self.succ[0]}:{str(self.succ[1])}')
+    #                # Inform new succ to update its pred to me now
+    #                pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #                pSocket.connect(self.succ)
+    #                pSocket.sendall(pickle.dumps([4, 0, self.address]))
+    #                pSocket.close()
+    #                #for fileName in os.listdir("./Almacen/"):
+    #                #    pSocket.connect(self.succ)
+    #                #    pSocket.sendall(pickle.dump([6, fileName]))
+    #                #    self.EnviarArchivo(pSocket, fileName)
+#
 
-            try:
-                pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                pSocket.connect(self.succ)
-                pSocket.sendall(pickle.dumps([2]))
-                recvPred = pickle.loads(pSocket.recv(BUFFER))
-            except:
-                print('\nOffline node dedected!\nStabilizing...')
-                # Search for the next succ from the F table
-                newSuccFound = False
-                value = ()
-                for key, value in self.fingerTable.items():
-                    if value[0] != self.succID:
-                        newSuccFound = True
-                        break
-                if newSuccFound:
-                    self.succ = value[1]
-                    self.succID = getHash(f'{self.succ[0]}:{str(self.succ[1])}')
-                    # Inform new succ to update its pred to me now
-                    pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    pSocket.connect(self.succ)
-                    pSocket.sendall(pickle.dumps([4, 0, self.address]))
-                    pSocket.close()
-                    #for fileName in os.listdir("./Almacen/"):
-                    #    pSocket.connect(self.succ)
-                    #    pSocket.sendall(pickle.dump([6, fileName]))
-                    #    self.EnviarArchivo(pSocket, fileName)
-
-
-                else:
-                    self.pred = self.address
-                    self.predID = self.id
-                    self.succ = self.address
-                    self.succID = self.id
-                self.updateFingerTable()
-                self.updateOtherFingerTables()
-                self.menu()
+    #            else:
+    #                self.pred = self.address
+    #                self.predID = self.id
+    #                self.succ = self.address
+    #                self.succID = self.id
+    #            self.updateFingerTable()
+    #            self.updateOtherFingerTables()
+    #            self.menu()
         
     
 
