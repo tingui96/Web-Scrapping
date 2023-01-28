@@ -23,8 +23,10 @@ class Node:
         self.predID = self.id
         self.succ = (ip, port)
         self.succID = self.id
+        self.succesorDelSuccesor = (ip, port)
         self.fingerTable = OrderedDict()
         self.UrlList = []
+        self.DepthList = []
         try:
             self.ServerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.ServerSocket.bind((IP, PORT))
@@ -40,16 +42,17 @@ class Node:
             port = input('Enter port: ')
             self.sendJoinRequest(ip, int(port))
         elif userChoice == '2':
-            URL = input('Introduzca la URL: ')
-            profundidad = input('Nivel de profundidad: ')
-            self.sendScrappingRequest(URL)
+            URL = input('Enter the URL: ')
+            profundidad = input('Depth level: ')
+            self.sendScrappingRequest(URL, profundidad)
         elif userChoice == '3':
             self.printFingerTable()
         elif userChoice == '4':
             print(f'My ID: {self.id}')
             print(f'Predecessor: {self.predID}')
             print(f'Successor: {self.succID}')
-            
+            succsuccID = getHash(f'{self.succesorDelSuccesor[0]}:{str(self.succesorDelSuccesor[1])}')
+            print(f'Successor of my successor: {succsuccID}')       
 
     def printFingerTable(self):
         print('Printing Finger Table')
@@ -58,19 +61,7 @@ class Node:
 
     def menu(self):        
         print("1- Conectarse a la Red\n2- Scrapear URL")
-        index = input()
-        if index == "1":
-            print("Direccion:")
-            ip = input()
-            print("Puerto:")
-            port = input()
-            self.sendJoinRequest(ip,int(port))
-        if index == "2":    
-            print("Introduzca la URL a scrapear:")
-            URL = input()
-            print("Introduzca la profundidad de scrapping:")
-            profundidad = input()
-            self.sendScrappingRequest(ip,int(port),URL)
+            
         
 
     def start(self):
@@ -111,7 +102,10 @@ class Node:
         elif connectionType == 1:
             self.Scrapping(connection,address,datos)
         elif connectionType == 2:
-            connection.sendall(pickle.dumps(self.pred))
+            if datos[1] == 0:
+                connection.sendall(pickle.dumps(self.pred))
+            else:
+                connection.sendall(pickle.dumps([2,1,self.succ]))
         elif connectionType == 3:
             self.SearchID(connection, address, datos)
         elif connectionType == 4:
@@ -122,41 +116,64 @@ class Node:
         elif connectionType == 5:
             self.updateFingerTable()
             connection.sendall(pickle.dumps(self.succ))
-        #elif connectionType == 6:
-        #    self.RecibirArchivo(connection, datos[1], 1)
-        #    pass
+        elif connectionType == 6:
+            self.RecibirArchivo(connection, datos[1], 1)
+            pass
+        elif connectionType == 7:
+            self.updateSucc2(datos)
+        elif connectionType == 8:
+            self.ActualizarSuccSucc()
+        elif connectionType == 9:
+            self.ReplicateAll()     
         else:
             print('Problem with connection type')
 
     def sendJoinRequest(self, ip, port):
         try:
             recvAddress = self.getSuccessor((ip, port), self.id)
-            print("mi sucesor es "+ str(recvAddress[1]))
+            #print("mi sucesor es "+ str(recvAddress[1]))
             peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peerSocket.connect(recvAddress)
-            print("me conecto a mi sucesor")
+            #print("me conecto a mi sucesor")
             # 0 para que sepa que me quiero unir y le mando mi ip,puerto
             datos = [0, self.address]
             peerSocket.sendall(pickle.dumps(datos))
-            print("le envio mi direccion que es "+str(self.address[1]))
+            #print("le envio mi direccion que es "+str(self.address[1]))
             #recibo en datos quien es mi antecesor
             datos = pickle.loads(peerSocket.recv(BUFFER)) 
                       
             self.pred = datos[0]
             self.predID = getHash(f'{self.pred[0]}:{str(self.pred[1])}')
-            print("recibo mi antecesor "+ str(self.predID)) 
+            #print("recibo mi antecesor "+ str(self.predID)) 
             self.succ = recvAddress
             
             self.succID = getHash(f'{self.succ[0]}:{str(self.succ[1])}')
-            print("actualizo mi sucesor con "+str(self.succID))
+            #print("actualizo mi sucesor con "+str(self.succID))
             datos = [4, 1, self.address]
             pSocket2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            #entra al antecesor para que actualice su predecesor conmigo
+            #entra al antecesor para que actualice su sucesor conmigo
             pSocket2.connect(self.pred)
             pSocket2.sendall(pickle.dumps(datos))
-            print("Actualizo el sucesor de mi antecesor")
+            #print("Actualizo el sucesor de mi antecesor")
             pSocket2.close()
             peerSocket.close()
+            #entra al antecesor para que actualice el sucesor de su sucesor
+            pSocket2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            pSocket2.connect(self.pred)
+            pSocket2.sendall(pickle.dumps([7,1,self.succ]))
+            pSocket2.close()
+            time.sleep(0.1)
+            self.ActualizarSuccSucc()
+            pSocket2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            pSocket2.connect(self.succ)
+            pSocket2.sendall(pickle.dumps([8]))
+            pSocket2.close()   
+            #entro a mi predecesor para que se replique en mi
+            pSocket2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            pSocket2.connect(self.pred)
+            pSocket2.sendall(pickle.dumps([9]))
+            pSocket2.close()   
+            
         except socket.error:
             print('Socket error. Recheck IP/Port.')
 
@@ -168,19 +185,20 @@ class Node:
             #recibo la direccion del nodo
             peerAddr = datos[1]
             peerID = getHash(f'{peerAddr[0]}:{str(peerAddr[1])}')
-            print("llego "+str(peerID))
+            #print("llego "+str(peerID))
             
             oldPred= self.pred
             self.pred = peerAddr
             self.predID = peerID
-            print("Actualizo mi predecesor con "+ str(self.predID))
+            #print("Actualizo mi predecesor con "+ str(self.predID))
             datos = [oldPred]
             #le envio a su antecesor
-            print("Le envio su predecesor que es "+str(datos))
-            connection.sendall(pickle.dumps(datos))
+            #print("Le envio su predecesor que es "+str(datos))
+            connection.sendall(pickle.dumps(datos))                   
+            
             time.sleep(0.1)
             self.updateFingerTable()
-            self.updateOtherFingerTables()
+            self.updateOtherFingerTables()       
             
     def getSuccessor(self, address, keyID):
         datos = [1, address]
@@ -231,6 +249,10 @@ class Node:
         self.succ = newSucc
         self.succID = getHash(f'{newSucc[0]}:{str(newSucc[1])}')
 
+    def updateSucc2(self, datos):
+        newSucc2 = datos[2]
+        self.succesorDelSuccesor = newSucc2
+
     def updatePred(self, datos):
         newPred = datos[2]
         self.pred = newPred
@@ -268,43 +290,89 @@ class Node:
         connection.sendall(pickle.dumps(datos))
     
     def sendScrappingRequest(self, URL, profundidad=0):
-        urlID = getHash(URL)
-        recvAddress = self.getSuccessor(self.succ,urlID)
-        filename = URL.split('/')[-1]
-        #lo debo tener yo mismo
-        if recvAddress[0] == self.address[0] and recvAddress[1] == self.address[1]:
-            if not os.path.exists("./Almacen/"+str(urlID)):
-                scrapy = Scrapper(URL,profundidad)
-                scrapy.scrapping()
-                scrapy.Save()
-            file = open("./Almacen/"+str(urlID),"rb")
-            file1 = open("./www/"+filename,"wb")
-            text = file.read()
-            file1.write(text)
-            file.close()
-            file1.close()
-        else:
-            peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            peerSocket.connect(recvAddress)
-            datos = [1,URL]
-            #Envio la url a scrapear
-            peerSocket.sendall(pickle.dumps(datos))
-            #recibo todo el scrapping de la URL        
-            self.RecibirArchivo(peerSocket,filename)   
+        self.UrlList.append(URL)
+        self.DepthList.append(0)
+        while len(self.UrlList) > 0:
+            url = self.UrlList.pop(0)
+            depth = self.DepthList.pop(0)
+            #print(len(self.UrlList))
+            urlID = getHash(url)
+            recvAddress = self.getSuccessor(self.succ,urlID)
+            #name = url.split('/')[-1]
+            filename = self.changeFilename(url)
+            
+            #lo debo tener yo mismo
+            if recvAddress[0] == self.address[0] and recvAddress[1] == self.address[1]:
+
+                if not os.path.exists("./Almacen/"+str(urlID)):
+                    print('URL not found... scrapping')
+                    scrapy = Scrapper(url,depth,profundidad)
+                    scrapy.scrapping()
+                    scrapy.Save()
+                    print("Scrapped url... ")
+                    #replicar el archivo en mi sucesor
+                    self.Replicate(urlID)
+                    file = open("./Almacen/"+str(urlID),"rb")
+                    file1 = open("./www/"+filename,"wb")
+                    text = file.read()
+                    file1.write(text)
+                    file.close()
+                    file1.close()
+                    #Agrego a la cola las url a scrapear en profundidad
+                    self.UrlList.extend(scrapy.taskQ)
+                    self.DepthList.extend(scrapy.depthQ)
+                else:
+                    print("Url found... : "+str(url))
+                    scrapy = Scrapper(url,depth,profundidad)
+                    file = open("./Almacen/"+str(urlID),"rb")
+                    text = file.read()
+                    scrapy.getLink(text)
+                    file1 = open("./www/"+filename,"wb")
+                    file1.write(text)
+                    file.close()
+                    file1.close()
+                    self.Replicate(urlID)
+                    self.UrlList.extend(scrapy.taskQ)
+                    self.DepthList.extend(scrapy.depthQ)
+            else:
+                print('Sending scrapping:', url)
+                peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                peerSocket.connect(recvAddress)
+                datos = [1,url,depth,profundidad]
+                #Envio la url a scrapear con su profundidad y la profundidad maxima
+                peerSocket.sendall(pickle.dumps(datos))
+                #recibo todo el scrapping en profundidad +1 de la Url y sus profundidades
+                datos = pickle.loads(peerSocket.recv(BUFFER)) 
+                self.UrlList.extend(datos[0])
+                self.DepthList.extend(datos[1])
+                self.RecibirArchivo(peerSocket,filename)   
 
     def Scrapping(self,connection, address, datos):
         URL = datos[1]
         urlID = getHash(URL)
-        print('Sending scrapping:', URL)
+        depth = int(datos[2])
+        max_depth = int(datos[3])
 
         if not os.path.exists("./Almacen/"+str(urlID)):
-            print('URL not found...scrapping')
-            scrapy = Scrapper(URL)
+            print('URL not found... scrapping')
+            scrapy = Scrapper(URL,depth,max_depth)
             scrapy.scrapping()
             scrapy.Save()
-            #self.UrlList.append(urlID)              
+            print('Scrapped: '+str(URL))
+            connection.sendall(pickle.dumps([scrapy.taskQ, scrapy.depthQ]))
+            time.sleep(0.1)  
+        else:
+            print("Url found... : ")
+            scrapy = Scrapper(URL,depth,max_depth)
+            file = open("./Almacen/"+str(urlID),"rb")
+            text = file.read()
+            scrapy.getLink(text)
+            connection.sendall(pickle.dumps([scrapy.taskQ, scrapy.depthQ]))
+            time.sleep(0.1)  
+
         self.EnviarArchivo(connection, urlID)
-        
+        #replicar el archivo en mi sucesor
+        self.Replicate(urlID)
 
     def EnviarArchivo(self, connection, fileID):
         file_open=0
@@ -319,10 +387,9 @@ class Node:
             if file_open:
                 file.close()
             connection.close()
-            print("No se mando ni carajo")
+            print("The file has not been sent")
             return
         
-        print('File sent')
         # Se utiliza el caracter de código 1 para indicar
         # al cliente que ya se ha enviado todo el contenido.
         try:
@@ -362,18 +429,16 @@ class Node:
         #connection.close()
         #file.close()
 
-        print("El archivo ha sido enviado correctamente.")
+        print("The file has been sent successfully.")
 
     def RecibirArchivo(self,connection,filename, flag = 0):
         try:
-            #if  flag:
-            #    if not os.path.exists("./Pred/"+str(filename)):
-            #        connection.sendall('notfound')
-            #        file = open("./Pred/"+str(filename), "wb")
-            #    else:
-            #        connection.sendall('found') 
-            #else:
-            file = open("./www/"+str(filename), "wb")
+            file=0
+            if  flag:
+                print("Replicating files from its predecessor...")
+                file = open("./Almacen/"+str(filename), "wb")
+            else:
+                file = open("./www/"+str(filename), "wb")
             while True:                
                 fileData = connection.recv(BUFFER)
                 if fileData:                    
@@ -390,11 +455,11 @@ class Node:
                     break
             file.close()
             connection.close()
-            print("Todo escrito en archivo")
+            print("All written on file")
         except ConnectionResetError:
-            print('Data transfer interupted')
-            print('Waiting for system to stabilize')
-            print('Trying again in 10 seconds')
+            print('Interrupted data transfer')
+            print('Waiting for the system to stabilize')
+            print('Try again in 10 seconds')
             os.remove(filename)
 
     def pingSucc(self):
@@ -409,45 +474,78 @@ class Node:
                 #print("abri el socket")
                 pSocket.connect(self.succ)
                 #print("me conecte")
-                pSocket.sendall(pickle.dumps([2]))
+                pSocket.sendall(pickle.dumps([2,0]))
                 #print("envie ping")
                 recvPred = pickle.loads(pSocket.recv(BUFFER))
                 
             except:
-                print('\nOffline node dedected!\nStabilizing...')
-                # Search for the next succ from the F table
-                newSuccFound = False
-                value = ()
-                self.printFingerTable()
-                for key, value in self.fingerTable.items():
-                    if value[0] != self.succID:
-                        newSuccFound = True
-                        break
-                if newSuccFound:
-                    self.succ = value[1]
+                print('\nNode offline detected \nStabilizing...')
+                
+                if not self.succ == self.pred:
+                    # Search for the next succ
+                    self.succ = self.succesorDelSuccesor
                     self.succID = getHash(f'{self.succ[0]}:{str(self.succ[1])}')
-                    # Inform new succ to update its pred to me now
+
+                    # Informa al nuevo sucesor para que actualice su predecesor conmigo
                     pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     pSocket.connect(self.succ)
                     pSocket.sendall(pickle.dumps([4, 0, self.address]))
                     pSocket.close()
-                    print("mi sucesor es "+ str(self.succID))
-                    #for fileName in os.listdir("./Almacen/"):
-                    #    pSocket.connect(self.succ)
-                    #    pSocket.sendall(pickle.dump([6, fileName]))
-                    #    self.EnviarArchivo(pSocket, fileName)
+
+                    #entra al antecesor para que actualice el sucesor de su sucesor
+                    pSocket2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    pSocket2.connect(self.pred)
+                    pSocket2.sendall(pickle.dumps([7,1,self.succ]))
+                    pSocket2.close()
+                    time.sleep(0.1)
+
+                    #actualiza mi sucesor sucesor
+                    self.ActualizarSuccSucc()
+
+                    #entra a mi sucesor para que actualice el sucesor de su sucesor
+                    pSocket2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    pSocket2.connect(self.succ)
+                    pSocket2.sendall(pickle.dumps([8]))
+                    pSocket2.close()
+
+                    self.ReplicateAll()
                 else:
                     self.pred = self.address
                     self.predID = self.id
                     self.succ = self.address
                     self.succID = self.id
+                    
                 self.updateFingerTable()
                 self.updateOtherFingerTables()
                 self.menu()
-       
     
+    def ReplicateAll(self):
+        for fileName in os.listdir("./Almacen/"):
+            pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            pSocket.connect(self.succ)
+            pSocket.sendall(pickle.dumps([6, fileName]))
+            self.EnviarArchivo(pSocket, fileName)
+            print('Replicated file: '+str(fileName)) 
+    
+    def Replicate(self, KeyID):
+        pSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        pSocket.connect(self.succ)
+        pSocket.sendall(pickle.dumps([6, KeyID]))
+        self.EnviarArchivo(pSocket, KeyID)
+        print('Replicated file: '+str(KeyID))
 
+    def ActualizarSuccSucc(self):
+        psocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        psocket.connect(self.succ)
+        psocket.sendall(pickle.dumps([2,1]))
+        datos = pickle.loads(psocket.recv(BUFFER))
+        self.updateSucc2(datos)
+        psocket.close()
 
+    def changeFilename(self, name):
+        splitName = name.replace(':', '-').replace('?', '+').replace('=', '$').split('/')
+        #splitName = splitName[max(0, len(splitName) - 4):]
+        return '@'.join(splitName)
 
 if __name__ == '__main__':
 

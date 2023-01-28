@@ -1,8 +1,7 @@
 from bs4 import BeautifulSoup
 import requests
 import time
-<<<<<<< HEAD
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse
 import hashlib
 from tools import *
 import tldextract as tld
@@ -68,7 +67,7 @@ class Scrapper:
                             self.depthQ.append(self.profundidad+1)
  
         else:
-            print('Invalid URL ' + self.url)   
+            print('Invalid URL ' + url)   
 
     def getHTML(self, url:str):
         wait = 0
@@ -84,24 +83,6 @@ class Scrapper:
                 time.sleep(2 ** wait)
                 wait = wait + 1
         return html
-=======
-from urllib.parse import urlparse
-import hashlib
-from tools import *
-
-class Scrapper:
-    def __init__(self,url,profundidad=0):
-        self.url = url
-        self.profundidad = profundidad
-        dicionario = dict()
-        self.text = ""
-        
-    def scrapping(self):
-        if self.Valid(self.url):
-            peticion = requests.get(self.url)
-            self.text = peticion.text
-        else:
-            print('Invalid URL ' + url)   
 
     def Valid(self,url):
         try:
@@ -109,6 +90,12 @@ class Scrapper:
             return all([result.scheme, result.netloc])
         except ValueError:
             return False     
+
+    def validTags(self, tag:str):
+        '''
+        Html tags filter
+        '''
+        return tag.has_attr('href') or tag.has_attr('src')
 
     def Save(self):
         filename = getHash(self.url)
@@ -125,4 +112,3 @@ if __name__ == "__main__":
     print(scrapy.text)
     scrapy.Save()
     
->>>>>>> 6d9712f (start)
